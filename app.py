@@ -145,7 +145,7 @@ def main():
     st.title("🍳 宿舍食譜助手")
     st.write("用手邊的食材和廚具，快速找到一道適合現在的料理。")
     st.caption("選好食材、口感偏好與採買方式，再生成專屬食譜。")
-    st.caption("每次生成食譜也會呼叫 Gemini 圖片生成 API，可能產生額外費用。")
+    st.caption("每次生成食譜也會呼叫 OpenAI 圖片生成 API，並額外計費。")
 
     menu_filepath = os.path.join(os.path.dirname(__file__), "menu.json")
     try:

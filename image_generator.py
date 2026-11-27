@@ -1,18 +1,19 @@
+import base64
+import binascii
 import json
 import os
 
-from google import genai
-from google.genai import errors
+from openai import APIError, OpenAI
 
 
 def generate_recipe_image(dish_name, ingredients):
-    """使用 Gemini 圖片模型生成料理照片，回傳圖片位元組。"""
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    """使用 OpenAI 圖片 API 生成料理照片，回傳圖片位元組。"""
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if api_key == "":
-        raise RuntimeError("尚未設定 GEMINI_API_KEY，無法生成料理圖片。")
+        raise RuntimeError("尚未設定 OPENAI_API_KEY，無法生成料理圖片。")
     if not api_key.isascii():
         raise RuntimeError(
-            "GEMINI_API_KEY 含有非 ASCII 字元，請設定有效的 Gemini API 金鑰，"
+            "OPENAI_API_KEY 含有非 ASCII 字元，請設定有效的 OpenAI API 金鑰，"
             "不要使用中文佔位文字。"
         )
     if type(dish_name) is not str or dish_name.strip() == "":
@@ -34,22 +35,43 @@ def generate_recipe_image(dish_name, ingredients):
         "Do not include text, labels, logos, or watermarks."
     )
 
-    model_name = os.getenv("GEMINI_IMAGE_MODEL", "gemini-nano-banana-2.1").strip()
-    if model_name == "":
-        raise RuntimeError("GEMINI_IMAGE_MODEL 不能是空字串。")
+    try:
+        response = OpenAI(api_key=api_key).images.generate(
+            model="gpt-image-2.5-sunburst",
+            prompt=prompt,
+            size="1024x1024",
+            quality="low",
+        )
+    except APIError as error:
+        error_details = getattr(error, "body", None)
+        if not error_details:
+            response = getattr(error, "response", None)
+            error_details = getattr(response, "text", None)
+        if not error_details:
+            error_details = str(error)
+        if isinstance(error_details, dict):
+            error_details = json.dumps(error_details, ensure_ascii=False)
+        if not error_details:
+            error_details = (
+                "HTTP "
+                + str(getattr(error, "status_code", "unknown"))
+                + "；API 未提供錯誤內容"
+            )
+        request_id = getattr(error, "request_id", None)
+        if request_id:
+            error_details = str(error_details) + "；Request ID: " + request_id
+        raise RuntimeError(
+            "OpenAI 圖片生成 API 呼叫失敗：" + str(error_details)
+        ) from error
+
+    if not response.data or response.data[0].b64_json is None:
+        raise RuntimeError("OpenAI 圖片生成 API 沒有回傳圖片。")
 
     try:
-        response = genai.Client(api_key=api_key).models.generate_content(
-            model=model_name,
-            contents=prompt,
-        )
-    except errors.APIError as error:
-        raise RuntimeError("Gemini 圖片生成 API 呼叫失敗：" + str(error)) from error
+        image_bytes = base64.b64decode(response.data[0].b64_json, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise RuntimeError("OpenAI 回傳的圖片資料格式無效。") from error
 
-    for part in response.parts or []:
-        if part.inline_data is not None and part.inline_data.data:
-            if not isinstance(part.inline_data.data, bytes):
-                raise RuntimeError("Gemini 回傳的圖片資料格式無效。")
-            return part.inline_data.data
-
-    raise RuntimeError("Gemini 圖片生成 API 沒有回傳圖片。")
+    if image_bytes == b"":
+        raise RuntimeError("OpenAI 回傳了空白圖片。")
+    return image_bytes
