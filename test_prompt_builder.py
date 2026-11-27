@@ -25,12 +25,12 @@ class GenerateRecipeRetryTests(unittest.TestCase):
         )
 
     def test_rejects_non_ascii_api_key_before_request(self):
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "換成你的 OpenAI API 金鑰"}):
-            with patch("prompt_builder.OpenAI") as openai:
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "換成你的 Gemini API 金鑰"}):
+            with patch("prompt_builder.genai.Client") as gemini:
                 with self.assertRaisesRegex(RuntimeError, "非 ASCII"):
                     generate_recipe(self.prompt)
 
-        openai.assert_not_called()
+        gemini.assert_not_called()
 
     def _response(self, existing_ingredients):
         recipe = {
@@ -51,15 +51,7 @@ class GenerateRecipeRetryTests(unittest.TestCase):
             ],
             "reminders": [],
         }
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=json.dumps(recipe, ensure_ascii=False)
-                    )
-                )
-            ]
-        )
+        return SimpleNamespace(text=json.dumps(recipe, ensure_ascii=False))
 
     def test_retries_with_allowed_ingredients_after_invalid_item(self):
         create = Mock(
@@ -68,18 +60,21 @@ class GenerateRecipeRetryTests(unittest.TestCase):
                 self._response(["肉鬆", "油豆腐"]),
             ]
         )
-        client = SimpleNamespace(
-            chat=SimpleNamespace(completions=SimpleNamespace(create=create))
-        )
+        client = SimpleNamespace(models=SimpleNamespace(generate_content=create))
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-            with patch("prompt_builder.OpenAI", return_value=client):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+            with patch("prompt_builder.genai.Client", return_value=client):
                 recipe = generate_recipe(self.prompt)
 
         self.assertEqual(recipe["existing_ingredients"], ["肉鬆", "油豆腐"])
         self.assertEqual(create.call_count, 2)
-        retry_message = create.call_args_list[1].kwargs["messages"][1]["content"]
+        retry_message = create.call_args_list[1].kwargs["contents"]
         self.assertIn('["肉鬆", "油豆腐"]', retry_message)
+        self.assertEqual(create.call_args.kwargs["model"], "gemini-4-hydrogen")
+        self.assertEqual(
+            create.call_args.kwargs["config"].response_mime_type,
+            "application/json",
+        )
 
     def test_reports_invalid_item_after_retry_fails(self):
         create = Mock(
@@ -88,12 +83,10 @@ class GenerateRecipeRetryTests(unittest.TestCase):
                 self._response(["白飯"]),
             ]
         )
-        client = SimpleNamespace(
-            chat=SimpleNamespace(completions=SimpleNamespace(create=create))
-        )
+        client = SimpleNamespace(models=SimpleNamespace(generate_content=create))
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-            with patch("prompt_builder.OpenAI", return_value=client):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+            with patch("prompt_builder.genai.Client", return_value=client):
                 with self.assertRaisesRegex(ValueError, "白飯"):
                     generate_recipe(self.prompt)
 
