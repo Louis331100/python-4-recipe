@@ -11,6 +11,11 @@ def generate_recipe_image(dish_name, ingredients):
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if api_key == "":
         raise RuntimeError("尚未設定 OPENAI_API_KEY，無法生成料理圖片。")
+    if not api_key.isascii():
+        raise RuntimeError(
+            "OPENAI_API_KEY 含有非 ASCII 字元，請設定有效的 OpenAI API 金鑰，"
+            "不要使用中文佔位文字。"
+        )
     if type(dish_name) is not str or dish_name.strip() == "":
         raise ValueError("生成圖片需要有效的菜名。")
     if type(ingredients) is not list or any(
@@ -38,7 +43,26 @@ def generate_recipe_image(dish_name, ingredients):
             quality="low",
         )
     except APIError as error:
-        raise RuntimeError("OpenAI 圖片生成 API 呼叫失敗：" + str(error)) from error
+        error_details = getattr(error, "body", None)
+        if not error_details:
+            response = getattr(error, "response", None)
+            error_details = getattr(response, "text", None)
+        if not error_details:
+            error_details = str(error)
+        if isinstance(error_details, dict):
+            error_details = json.dumps(error_details, ensure_ascii=False)
+        if not error_details:
+            error_details = (
+                "HTTP "
+                + str(getattr(error, "status_code", "unknown"))
+                + "；API 未提供錯誤內容"
+            )
+        request_id = getattr(error, "request_id", None)
+        if request_id:
+            error_details = str(error_details) + "；Request ID: " + request_id
+        raise RuntimeError(
+            "OpenAI 圖片生成 API 呼叫失敗：" + str(error_details)
+        ) from error
 
     if not response.data or response.data[0].b64_json is None:
         raise RuntimeError("OpenAI 圖片生成 API 沒有回傳圖片。")

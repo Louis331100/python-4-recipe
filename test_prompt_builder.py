@@ -24,6 +24,14 @@ class GenerateRecipeRetryTests(unittest.TestCase):
             self.conditions["allow_extra_buy"],
         )
 
+    def test_rejects_non_ascii_api_key_before_request(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "換成你的 OpenAI API 金鑰"}):
+            with patch("prompt_builder.OpenAI") as openai:
+                with self.assertRaisesRegex(RuntimeError, "非 ASCII"):
+                    generate_recipe(self.prompt)
+
+        openai.assert_not_called()
+
     def _response(self, existing_ingredients):
         recipe = {
             "dish_name": "油豆腐肉鬆煮",

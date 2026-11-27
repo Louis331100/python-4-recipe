@@ -7,17 +7,20 @@ from image_generator import generate_recipe_image
 from prompt_builder import build_recipe_prompt, generate_recipe
 
 
-def render_inventory_ui(menu_data):
-    """顯示廚具與食材選單；參數為選單字典，回傳廚具、食材、調味料清單。"""
-    st.subheader("1. 選擇手邊廚具與食材")
-
-    # 依 menu.json 的內容動態產生廚具選項。
+def render_cookware_ui(menu_data):
+    """顯示廚具選單；參數為選單字典，回傳廚具清單。"""
+    st.subheader("1. 選擇手邊廚具")
     cookware = st.multiselect(
         "目前可使用的廚具（至少選一項）",
         menu_data["cookware"],
         key="selected_cookware",
     )
+    return cookware
 
+
+def render_ingredients_ui(menu_data):
+    """顯示食材與調味料選單；參數為選單字典，回傳兩者清單。"""
+    st.subheader("2. 選擇手邊食材")
     selected_ingredients = []
     for category, items in menu_data["categories"].items():
         with st.expander(category):
@@ -57,13 +60,12 @@ def render_inventory_ui(menu_data):
         default=menu_data["default_seasonings"],
         key="selected_default_seasonings",
     )
-
-    return cookware, selected_ingredients, seasonings
+    return selected_ingredients, seasonings
 
 
 def render_preference_ui(menu_data):
     """顯示料理偏好和微採買開關；參數為選單字典，回傳偏好與布林值。"""
-    st.subheader("2. 設定食譜偏好")
+    st.subheader("3. 設定食譜偏好")
     preference = st.selectbox(
         "想做哪一類料理？",
         menu_data["recipe_preferences"],
@@ -80,7 +82,7 @@ def render_preference_ui(menu_data):
 def render_recipe_result(recipe_data, recipe_image=None, image_error=None):
     """分區顯示食譜；參數為食譜字典，直接輸出到 Streamlit 頁面。"""
     st.divider()
-    st.subheader("3. 專屬食譜")
+    st.subheader("4. 專屬食譜")
     st.title(recipe_data["dish_name"])
     st.caption(
         "份量：" + str(recipe_data["servings"]) + " 人份　｜　"
@@ -154,7 +156,8 @@ def main():
 
     # 使用表單集中輸入，避免每次點選都重新呼叫 AI。
     with st.form("recipe_input_form"):
-        cookware, ingredients, seasonings = render_inventory_ui(menu_data)
+        cookware = render_cookware_ui(menu_data)
+        ingredients, seasonings = render_ingredients_ui(menu_data)
         preference, allow_extra_buy = render_preference_ui(menu_data)
         submitted = st.form_submit_button("✨ 生成食譜", type="primary")
 

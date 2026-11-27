@@ -139,6 +139,11 @@ def generate_recipe(prompt):
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if api_key == "":
         raise RuntimeError("尚未設定 OPENAI_API_KEY，請先設定 OpenAI API 金鑰再生成食譜。")
+    if not api_key.isascii():
+        raise RuntimeError(
+            "OPENAI_API_KEY 含有非 ASCII 字元，請設定有效的 OpenAI API 金鑰，"
+            "不要使用中文佔位文字。"
+        )
 
     try:
         prompt_data = json.loads(prompt)
@@ -175,7 +180,24 @@ def generate_recipe(prompt):
                 response_format={"type": "json_object"},
             )
         except APIError as error:
-            raise RuntimeError("OpenAI API 呼叫失敗：" + str(error)) from error
+            error_details = getattr(error, "body", None)
+            if not error_details:
+                response = getattr(error, "response", None)
+                error_details = getattr(response, "text", None)
+            if not error_details:
+                error_details = str(error)
+            if isinstance(error_details, dict):
+                error_details = json.dumps(error_details, ensure_ascii=False)
+            if not error_details:
+                error_details = (
+                    "HTTP "
+                    + str(getattr(error, "status_code", "unknown"))
+                    + "；API 未提供錯誤內容"
+                )
+            request_id = getattr(error, "request_id", None)
+            if request_id:
+                error_details = str(error_details) + "；Request ID: " + request_id
+            raise RuntimeError("OpenAI API 呼叫失敗：" + str(error_details)) from error
 
         response_text = response.choices[0].message.content
         if response_text is None or response_text.strip() == "":
