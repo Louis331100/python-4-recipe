@@ -40,7 +40,27 @@ class GenerateRecipeRetryTests(unittest.TestCase):
             "preference": self.conditions["preference"],
             "cookware_used": ["快煮鍋"],
             "existing_ingredients": existing_ingredients,
+            "ingredient_quantities": {
+                ingredient: {
+                    "grams": 100,
+                    "milliliters": None,
+                    "is_liquid": False,
+                }
+                for ingredient in existing_ingredients
+            },
             "used_seasonings": ["食用油", "鹽"],
+            "seasoning_quantities": {
+                "食用油": {
+                    "grams": 5,
+                    "milliliters": 5,
+                    "is_liquid": True,
+                },
+                "鹽": {
+                    "grams": 2,
+                    "milliliters": None,
+                    "is_liquid": False,
+                },
+            },
             "suggested_purchases": [],
             "steps": [
                 {
@@ -88,6 +108,21 @@ class GenerateRecipeRetryTests(unittest.TestCase):
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
             with patch("prompt_builder.genai.Client", return_value=client):
                 with self.assertRaisesRegex(ValueError, "白飯"):
+                    generate_recipe(self.prompt)
+
+    def test_requires_milliliters_for_liquid_seasonings(self):
+        recipe = json.loads(self._response(["肉鬆"]).text)
+        recipe["seasoning_quantities"]["食用油"]["milliliters"] = None
+        response = SimpleNamespace(text=json.dumps(recipe, ensure_ascii=False))
+        client = SimpleNamespace(
+            models=SimpleNamespace(
+                generate_content=Mock(return_value=response)
+            )
+        )
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+            with patch("prompt_builder.genai.Client", return_value=client):
+                with self.assertRaisesRegex(ValueError, "液體.*毫升數"):
                     generate_recipe(self.prompt)
 
 

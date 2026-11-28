@@ -15,7 +15,7 @@ class RecipeNavigationTests(unittest.TestCase):
         menu = {
             "cookware": ["快煮鍋", "微波爐"],
             "categories": {"主食": ["白飯"]},
-            "default_seasonings": ["鹽"],
+            "default_seasonings": ["鹽", "醬油"],
             "recipe_preferences": ["快速料理"],
         }
         recipe = {
@@ -25,13 +25,37 @@ class RecipeNavigationTests(unittest.TestCase):
             "preference": "快速料理",
             "cookware_used": ["快煮鍋"],
             "existing_ingredients": ["白飯"],
-            "used_seasonings": ["鹽"],
+            "ingredient_quantities": {
+                "白飯": {
+                    "grams": 150,
+                    "milliliters": None,
+                    "is_liquid": False,
+                }
+            },
+            "used_seasonings": ["鹽", "醬油"],
+            "seasoning_quantities": {
+                "鹽": {
+                    "grams": 2,
+                    "milliliters": None,
+                    "is_liquid": False,
+                },
+                "醬油": {
+                    "grams": 5,
+                    "milliliters": 5,
+                    "is_liquid": True,
+                },
+            },
             "suggested_purchases": [],
             "steps": [
                 {
                     "step_number": 1,
                     "cookware": "快煮鍋",
                     "instruction": "加熱。",
+                },
+                {
+                    "step_number": 2,
+                    "cookware": "快煮鍋",
+                    "instruction": "盛盤。",
                 }
             ],
             "reminders": [],
@@ -71,6 +95,26 @@ class RecipeNavigationTests(unittest.TestCase):
                 "selected_cookware",
                 [widget.key for widget in app.multiselect],
             )
+            subheaders = [element.value for element in app.subheader]
+            self.assertIn("使用食材", subheaders)
+            self.assertIn("食譜步驟", subheaders)
+            self.assertIn("注意事項", subheaders)
+            markdown_text = "\n".join(
+                element.value for element in app.markdown
+            )
+            self.assertIn("150 g", markdown_text)
+            self.assertIn("5 g · 5 mL", markdown_text)
+            self.assertIn("background: #3b3733", markdown_text)
+            self.assertIn("color: #f5f0e9", markdown_text)
+            self.assertIn(
+                ".st-key-recipe_notes_card [data-testid=\"stMarkdownContainer\"] *",
+                markdown_text,
+            )
+            self.assertNotIn("recipe_step_", markdown_text)
+            self.assertIn("#### 步驟 1", markdown_text)
+            self.assertIn("#### 步驟 2", markdown_text)
+            self.assertIn("font-size: 1.1rem", markdown_text)
+            self.assertIn(".st-key-recipe_steps hr", markdown_text)
             generate_recipe.assert_called_once()
 
             app.button(key="regenerate_recipe").click().run()
@@ -122,7 +166,21 @@ class RecipeNavigationTests(unittest.TestCase):
             "preference": "快速料理",
             "cookware_used": ["快煮鍋"],
             "existing_ingredients": ["白飯"],
+            "ingredient_quantities": {
+                "白飯": {
+                    "grams": 150,
+                    "milliliters": None,
+                    "is_liquid": False,
+                }
+            },
             "used_seasonings": ["鹽"],
+            "seasoning_quantities": {
+                "鹽": {
+                    "grams": 2,
+                    "milliliters": None,
+                    "is_liquid": False,
+                }
+            },
             "suggested_purchases": [],
             "steps": [
                 {
@@ -215,7 +273,21 @@ class RecipeNavigationTests(unittest.TestCase):
             "preference": "快速料理",
             "cookware_used": ["微波爐"],
             "existing_ingredients": ["食材一"],
+            "ingredient_quantities": {
+                "食材一": {
+                    "grams": 100,
+                    "milliliters": None,
+                    "is_liquid": False,
+                }
+            },
             "used_seasonings": ["鹽"],
+            "seasoning_quantities": {
+                "鹽": {
+                    "grams": 2,
+                    "milliliters": None,
+                    "is_liquid": False,
+                }
+            },
             "suggested_purchases": [],
             "steps": [
                 {

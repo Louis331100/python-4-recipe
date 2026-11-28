@@ -26,6 +26,9 @@ def build_recipe_prompt(
         shopping_rule,
         "步驟只可使用已選廚具；每一步的 cookware 欄位必須填入已選廚具名稱。",
         "existing_ingredients、used_seasonings 必須只列實際使用項目，名稱須與條件完全一致，不要在名稱中加入份量。",
+        "ingredient_quantities 的名稱必須和 existing_ingredients 完全相同；seasoning_quantities 的名稱必須和 used_seasonings 完全相同，且每個實際使用項目都要有一筆用量。",
+        "所有用量以 servings 所標示份數的整份食譜總量表示，grams 必須是正整數；液體的 is_liquid 設為 true，並同時提供正整數 milliliters；固體的 is_liquid 設為 false，milliliters 必須為 null。",
+        "料理步驟提到的食材分量需和 ingredient_quantities、seasoning_quantities 一致。",
         "suggested_purchases 只列新增採買項目，不可與現有食材或調味料重複。",
         "份量和時間使用正整數；步驟要有先後順序、清楚說明火候或加熱時間。",
         "只輸出符合下方格式的 JSON 物件，不要加 Markdown 或其他文字。",
@@ -38,7 +41,21 @@ def build_recipe_prompt(
         "preference": "必須與條件中的偏好完全一致",
         "cookware_used": ["已選廚具名稱"],
         "existing_ingredients": ["實際使用的現有食材名稱"],
+        "ingredient_quantities": {
+            "實際使用的現有食材名稱": {
+                "grams": 150,
+                "milliliters": None,
+                "is_liquid": False,
+            }
+        },
         "used_seasonings": ["實際使用的已選調味料名稱"],
+        "seasoning_quantities": {
+            "實際使用的已選調味料名稱": {
+                "grams": 5,
+                "milliliters": 5,
+                "is_liquid": True,
+            }
+        },
         "suggested_purchases": ["可為空清單"],
         "steps": [
             {
@@ -121,6 +138,46 @@ def _validate_recipe_data(recipe_data, conditions):
     for seasoning in recipe_data["used_seasonings"]:
         if seasoning not in conditions["seasonings"]:
             raise ValueError("AI 將未選取的調味料列為現有調味料，請重新生成。")
+
+    for quantity_field, item_field in [
+        ("ingredient_quantities", "existing_ingredients"),
+        ("seasoning_quantities", "used_seasonings"),
+    ]:
+        quantities = recipe_data.get(quantity_field)
+        if type(quantities) is not dict:
+            raise ValueError("AI 回傳的分量格式錯誤：" + quantity_field)
+        if set(quantities) != set(recipe_data[item_field]):
+            raise ValueError(
+                "AI 回傳的分量項目必須和實際使用項目完全一致："
+                + quantity_field
+            )
+        for item, amount in quantities.items():
+            if type(amount) is not dict or set(amount) != {
+                "grams",
+                "milliliters",
+                "is_liquid",
+            }:
+                raise ValueError(
+                    "AI 回傳的分量欄位格式錯誤：" + quantity_field
+                )
+            if type(amount["grams"]) is not int or amount["grams"] <= 0:
+                raise ValueError(
+                    "AI 回傳的克重必須是正整數：" + item
+                )
+            if type(amount["is_liquid"]) is not bool:
+                raise ValueError(
+                    "AI 回傳的液體類型格式錯誤：" + item
+                )
+            milliliters = amount["milliliters"]
+            if amount["is_liquid"]:
+                if type(milliliters) is not int or milliliters <= 0:
+                    raise ValueError(
+                        "液體食材與調味料必須提供正整數毫升數：" + item
+                    )
+            elif milliliters is not None:
+                raise ValueError(
+                    "固體食材與調味料的毫升數必須為 null：" + item
+                )
 
     if len(recipe_data["suggested_purchases"]) > 2:
         raise ValueError("AI 建議加買超過 2 樣食材，請重新生成。")

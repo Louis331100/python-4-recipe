@@ -194,10 +194,67 @@ def _generate_recipe_for_inputs(recipe_inputs):
     return True
 
 
+def _format_quantity(amount):
+    """格式化克重與液體容積。"""
+    quantity = str(amount["grams"]) + " g"
+    if amount["is_liquid"]:
+        quantity += " · " + str(amount["milliliters"]) + " mL"
+    return quantity
+
+
+def _render_measured_items(items, quantities, empty_message):
+    """顯示項目名稱與分量。"""
+    if not items:
+        st.caption(empty_message)
+        return
+
+    for item in items:
+        item_column, quantity_column = st.columns([3, 1])
+        with item_column:
+            st.write(item)
+        with quantity_column:
+            st.markdown("**" + _format_quantity(quantities[item]) + "**")
+
+
 def render_recipe_result(recipe_data):
-    """分區顯示食譜；參數為食譜字典，直接輸出到 Streamlit 頁面。"""
-    st.divider()
-    st.subheader("4. 專屬食譜")
+    """以分區卡片顯示食譜；參數為食譜字典。"""
+    st.markdown(
+        """
+        <style>
+        .st-key-recipe_ingredients_card,
+        .st-key-recipe_notes_card {
+            padding: 1rem 1.2rem;
+            border-radius: 14px;
+            border: 1px solid;
+            margin-bottom: 0.75rem;
+        }
+        .st-key-recipe_ingredients_card,
+        .st-key-recipe_notes_card {
+            background: #3b3733;
+            border-color: #ffffff;
+            color: #f5f0e9;
+        }
+        .st-key-recipe_ingredients_card [data-testid="stMarkdownContainer"] *,
+        .st-key-recipe_ingredients_card [data-testid="stCaptionContainer"] *,
+        .st-key-recipe_notes_card [data-testid="stMarkdownContainer"] *,
+        .st-key-recipe_notes_card [data-testid="stCaptionContainer"] * {
+            color: #f5f0e9 !important;
+        }
+        .st-key-recipe_ingredients_card hr {
+            border-color: #766d64;
+        }
+        .st-key-recipe_steps [data-testid="stMarkdownContainer"] p {
+            font-size: 1.1rem;
+            line-height: 1.65;
+        }
+        .st-key-recipe_steps hr {
+            border-color: #ffffff;
+            opacity: 0.9;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.title(recipe_data["dish_name"])
     st.caption(
         "份量：" + str(recipe_data["servings"]) + " 人份　｜　"
@@ -205,46 +262,60 @@ def render_recipe_result(recipe_data):
         + "偏好：" + recipe_data["preference"]
     )
 
-    left_column, right_column = st.columns(2)
-    with left_column:
-        st.markdown("#### 使用的現有食材")
-        if recipe_data["existing_ingredients"]:
-            for ingredient in recipe_data["existing_ingredients"]:
-                st.write("- " + ingredient)
+    st.divider()
+    st.subheader("使用食材")
+    with st.container(key="recipe_ingredients_card"):
+        ingredient_column, seasoning_column = st.columns(2)
+        with ingredient_column:
+            st.markdown("#### 現有食材")
+            _render_measured_items(
+                recipe_data["existing_ingredients"],
+                recipe_data["ingredient_quantities"],
+                "本食譜沒有使用已選食材。",
+            )
+        with seasoning_column:
+            st.markdown("#### 調味料")
+            _render_measured_items(
+                recipe_data["used_seasonings"],
+                recipe_data["seasoning_quantities"],
+                "本食譜沒有使用已選調味料。",
+            )
+
+        st.divider()
+        purchase_column, cookware_column = st.columns(2)
+        with purchase_column:
+            st.markdown("#### 建議加買")
+            if recipe_data["suggested_purchases"]:
+                for item in recipe_data["suggested_purchases"]:
+                    st.write("- " + item)
+            else:
+                st.caption("不需要額外採買。")
+        with cookware_column:
+            st.markdown("#### 使用廚具")
+            for cookware in recipe_data["cookware_used"]:
+                st.write("- " + cookware)
+
+    st.divider()
+    st.subheader("食譜步驟")
+    with st.container(key="recipe_steps"):
+        for index, step in enumerate(recipe_data["steps"]):
+            step_title_column, cookware_column = st.columns([3, 1])
+            with step_title_column:
+                st.markdown("#### 步驟 " + str(step["step_number"]))
+            with cookware_column:
+                st.caption("廚具：" + step["cookware"])
+            st.write(step["instruction"])
+            if index < len(recipe_data["steps"]) - 1:
+                st.divider()
+
+    st.divider()
+    st.subheader("注意事項")
+    with st.container(key="recipe_notes_card"):
+        if recipe_data["reminders"]:
+            for reminder in recipe_data["reminders"]:
+                st.write("- " + reminder)
         else:
-            st.write("本食譜沒有使用已選食材。")
-
-        st.markdown("#### 使用的已選調味料")
-        if recipe_data["used_seasonings"]:
-            for seasoning in recipe_data["used_seasonings"]:
-                st.write("- " + seasoning)
-        else:
-            st.write("沒有使用已選調味料。")
-
-    with right_column:
-        st.markdown("#### 建議加買")
-        if recipe_data["suggested_purchases"]:
-            for item in recipe_data["suggested_purchases"]:
-                st.write("- " + item)
-        else:
-            st.write("不需要額外採買。")
-
-        st.markdown("#### 使用廚具")
-        for cookware in recipe_data["cookware_used"]:
-            st.write("- " + cookware)
-
-    st.markdown("#### 料理步驟")
-    for step in recipe_data["steps"]:
-        st.markdown(
-            "**步驟 " + str(step["step_number"]) + "｜"
-            + step["cookware"] + "**"
-        )
-        st.write(step["instruction"])
-
-    if recipe_data["reminders"]:
-        st.markdown("#### 小提醒")
-        for reminder in recipe_data["reminders"]:
-            st.write("- " + reminder)
+            st.caption("暫無額外注意事項。")
 
 
 def main():
