@@ -116,6 +116,9 @@ def _random_challenge_values(menu_data):
     ]
     form_values = {key: [] for key in selection_keys}
     form_values["manual_ingredients"] = ""
+    form_values["selected_default_seasonings"] = list(
+        menu_data["default_seasonings"]
+    )
 
     for category, items in menu_data["categories"].items():
         if category == "肉類" and type(items) is dict:
@@ -132,10 +135,6 @@ def _random_challenge_values(menu_data):
                 ("category_" + category, item) for item in items
             )
 
-    seasoning_options.extend(
-        ("selected_default_seasonings", item)
-        for item in menu_data["default_seasonings"]
-    )
     if len(ingredient_options) < 4:
         raise ValueError("隨機食材挑戰需要至少 4 種可選食材。")
     if len(ingredient_options) + len(seasoning_options) < 6:

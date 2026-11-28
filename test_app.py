@@ -186,13 +186,22 @@ class RecipeNavigationTests(unittest.TestCase):
 
             self.assertFalse(app.exception)
             ingredient_count = len(app.multiselect(key="category_主食").value)
-            seasoning_count = (
-                len(app.multiselect(key="category_其他調味料").value)
-                + len(app.multiselect(key="selected_default_seasonings").value)
+            extra_seasoning_count = len(
+                app.multiselect(key="category_其他調味料").value
+            )
+            self.assertEqual(
+                app.multiselect(key="selected_default_seasonings").value,
+                menu["default_seasonings"],
             )
             self.assertGreaterEqual(ingredient_count, 4)
-            self.assertGreaterEqual(ingredient_count + seasoning_count, 6)
-            self.assertLessEqual(ingredient_count + seasoning_count, 10)
+            self.assertGreaterEqual(
+                ingredient_count + extra_seasoning_count,
+                6,
+            )
+            self.assertLessEqual(
+                ingredient_count + extra_seasoning_count,
+                10,
+            )
             app.multiselect(key="selected_cookware").select("微波爐")
             app.button(
                 key="FormSubmitter:recipe_input_form-✨ 生成食譜"
