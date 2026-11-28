@@ -1,4 +1,5 @@
 import os
+import random
 
 import streamlit as st
 
@@ -100,6 +101,64 @@ def _form_widget_keys(menu_data):
     return keys
 
 
+def _random_challenge_values(menu_data):
+    """產生隨機挑戰選項，回傳表單值、總數與食材數。"""
+    ingredient_options = []
+    seasoning_options = []
+    selection_keys = [
+        key
+        for key in _form_widget_keys(menu_data)
+        if key not in (
+            "selected_cookware",
+            "manual_ingredients",
+            "recipe_preference",
+            "allow_extra_buy",
+        )
+    ]
+    form_values = {key: [] for key in selection_keys}
+    form_values["manual_ingredients"] = ""
+
+    for category, items in menu_data["categories"].items():
+        if category == "肉類" and type(items) is dict:
+            for meat_type, forms in items.items():
+                for form in forms:
+                    ingredient_options.append(("meat_" + meat_type, form))
+        elif type(items) is list:
+            option_list = (
+                seasoning_options
+                if category == "其他調味料"
+                else ingredient_options
+            )
+            option_list.extend(
+                ("category_" + category, item) for item in items
+            )
+
+    seasoning_options.extend(
+        ("selected_default_seasonings", item)
+        for item in menu_data["default_seasonings"]
+    )
+    if len(ingredient_options) < 4:
+        raise ValueError("隨機食材挑戰需要至少 4 種可選食材。")
+    if len(ingredient_options) + len(seasoning_options) < 6:
+        raise ValueError("隨機食材挑戰需要至少 6 種可選食材或調味料。")
+
+    total_count = random.randint(
+        6,
+        min(10, len(ingredient_options) + len(seasoning_options)),
+    )
+    minimum_ingredients = max(4, total_count - len(seasoning_options))
+    maximum_ingredients = min(len(ingredient_options), total_count)
+    ingredient_count = random.randint(minimum_ingredients, maximum_ingredients)
+    seasoning_count = total_count - ingredient_count
+
+    for key, item in random.sample(ingredient_options, ingredient_count):
+        form_values[key].append(item)
+    for key, item in random.sample(seasoning_options, seasoning_count):
+        form_values[key].append(item)
+
+    return form_values, total_count, ingredient_count
+
+
 def _save_form_values(menu_data):
     """保存表單選項，供切換頁面後恢復。"""
     st.session_state["recipe_form_values"] = {
@@ -111,7 +170,8 @@ def _save_form_values(menu_data):
 
 def _restore_form_values():
     """在建立表單 widget 前恢復先前保存的選項。"""
-    for key, value in st.session_state.get("recipe_form_values", {}).items():
+    form_values = st.session_state.pop("recipe_form_values", {})
+    for key, value in form_values.items():
         st.session_state[key] = value
 
 
@@ -250,6 +310,27 @@ def main():
         return
 
     _restore_form_values()
+    _, challenge_column = st.columns([5, 1])
+    with challenge_column:
+        random_challenge = st.button(
+            "🎲 隨機食材挑戰",
+            key="random_ingredient_challenge",
+            use_container_width=True,
+        )
+    if random_challenge:
+        try:
+            challenge_values, total_count, ingredient_count = (
+                _random_challenge_values(menu_data)
+            )
+        except ValueError as error:
+            st.error(str(error))
+        else:
+            for key, value in challenge_values.items():
+                st.session_state[key] = value
+            st.success(
+                "已隨機挑選 " + str(total_count) + " 種，其中食材 "
+                + str(ingredient_count) + " 種。"
+            )
 
     # 使用表單集中輸入，避免每次點選都重新呼叫 AI。
     with st.form("recipe_input_form"):
@@ -259,7 +340,6 @@ def main():
         submitted = st.form_submit_button("✨ 生成食譜", type="primary")
 
     if submitted:
-        _save_form_values(menu_data)
         if len(cookware) == 0:
             st.error("請至少選擇一項可用廚具。")
             st.session_state["recipe_data"] = None
@@ -276,6 +356,7 @@ def main():
             }
             st.session_state["recipe_data"] = None
             if _generate_recipe_for_inputs(st.session_state["recipe_inputs"]):
+                _save_form_values(menu_data)
                 st.session_state["current_view"] = "recipe"
 
     if st.session_state.get("current_view") == "recipe":
