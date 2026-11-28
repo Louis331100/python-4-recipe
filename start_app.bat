@@ -47,8 +47,9 @@ if %errorlevel% neq 0 (
 
 echo 正在啓動宿舍食譜助手，瀏覽器將會自動開啓。
 ".venv\Scripts\python.exe" -m streamlit run app.py ^
-  --server.headless=true ^
+  --server.headless=false ^
   --server.port=8501 ^
+  --browser.serverAddress=localhost ^
   --browser.gatherUsageStats=false
 
 if %errorlevel% neq 0 (
