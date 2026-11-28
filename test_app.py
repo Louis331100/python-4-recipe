@@ -6,7 +6,6 @@ from unittest.mock import Mock, patch
 from streamlit.testing.v1 import AppTest
 
 import data_loader
-import image_generator
 import prompt_builder
 
 
@@ -43,11 +42,6 @@ class RecipeNavigationTests(unittest.TestCase):
                     prompt_builder,
                     "generate_recipe",
                     generate_recipe,
-                ), \
-                patch.object(
-                    image_generator,
-                    "generate_recipe_image",
-                    return_value=None,
                 ):
             app = AppTest.from_file(
                 os.path.join(os.path.dirname(__file__), "app.py")
@@ -132,12 +126,7 @@ class RecipeNavigationTests(unittest.TestCase):
                     prompt_builder,
                     "generate_recipe",
                     return_value=recipe,
-                ) as generate_recipe, \
-                patch.object(
-                    image_generator,
-                    "generate_recipe_image",
-                    return_value=None,
-                ):
+                ) as generate_recipe:
             app = AppTest.from_file(
                 os.path.join(os.path.dirname(__file__), "app.py")
             ).run()
@@ -189,12 +178,7 @@ class RecipeNavigationTests(unittest.TestCase):
                     prompt_builder,
                     "generate_recipe",
                     return_value=recipe,
-                ) as generate_recipe, \
-                patch.object(
-                    image_generator,
-                    "generate_recipe_image",
-                    return_value=None,
-                ):
+                ) as generate_recipe:
             app = AppTest.from_file(
                 os.path.join(os.path.dirname(__file__), "app.py")
             ).run()

@@ -4,7 +4,6 @@ import random
 import streamlit as st
 
 from data_loader import load_menu, parse_manual_ingredients
-from image_generator import generate_recipe_image
 from prompt_builder import build_recipe_prompt, generate_recipe
 
 
@@ -176,7 +175,7 @@ def _restore_form_values():
 
 
 def _generate_recipe_for_inputs(recipe_inputs):
-    """依已保存的輸入生成食譜與圖片；回傳食譜是否生成成功。"""
+    """依已保存的輸入生成食譜；回傳食譜是否生成成功。"""
     prompt = build_recipe_prompt(
         recipe_inputs["cookware"],
         recipe_inputs["ingredients"],
@@ -184,8 +183,6 @@ def _generate_recipe_for_inputs(recipe_inputs):
         recipe_inputs["preference"],
         recipe_inputs["allow_extra_buy"],
     )
-    st.session_state["recipe_image"] = None
-    st.session_state["recipe_image_error"] = None
     try:
         with st.spinner("正在依照你的食材和廚具設計食譜…"):
             recipe_data = generate_recipe(prompt)
@@ -194,18 +191,10 @@ def _generate_recipe_for_inputs(recipe_inputs):
         return False
 
     st.session_state["recipe_data"] = recipe_data
-    try:
-        with st.spinner("正在生成料理圖片…"):
-            st.session_state["recipe_image"] = generate_recipe_image(
-                recipe_data["dish_name"],
-                recipe_data["existing_ingredients"],
-            )
-    except (RuntimeError, ValueError) as error:
-        st.session_state["recipe_image_error"] = str(error)
     return True
 
 
-def render_recipe_result(recipe_data, recipe_image=None, image_error=None):
+def render_recipe_result(recipe_data):
     """分區顯示食譜；參數為食譜字典，直接輸出到 Streamlit 頁面。"""
     st.divider()
     st.subheader("4. 專屬食譜")
@@ -215,13 +204,6 @@ def render_recipe_result(recipe_data, recipe_image=None, image_error=None):
         + "預估時間：" + str(recipe_data["time_minutes"]) + " 分鐘　｜　"
         + "偏好：" + recipe_data["preference"]
     )
-
-    if recipe_image is not None:
-        st.image(recipe_image, caption="AI 生成料理圖片", width=600)
-    elif image_error is not None:
-        st.warning("食譜已生成，但圖片生成失敗：" + image_error)
-    else:
-        st.info("尚未生成料理圖片。")
 
     left_column, right_column = st.columns(2)
     with left_column:
@@ -271,7 +253,6 @@ def main():
     st.title("🍳 宿舍食譜助手")
     st.write("用手邊的食材和廚具，快速找到一道適合現在的料理。")
     st.caption("選好食材、口感偏好與採買方式，再生成專屬食譜。")
-    st.caption("每次生成食譜也會呼叫 Gemini 圖片生成 API，可能產生額外費用。")
 
     menu_filepath = os.path.join(os.path.dirname(__file__), "menu.json")
     try:
@@ -302,11 +283,7 @@ def main():
 
         recipe_data = st.session_state.get("recipe_data")
         if recipe_data is not None:
-            render_recipe_result(
-                recipe_data,
-                st.session_state.get("recipe_image"),
-                st.session_state.get("recipe_image_error"),
-            )
+            render_recipe_result(recipe_data)
         return
 
     _restore_form_values()

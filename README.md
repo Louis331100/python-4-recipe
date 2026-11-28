@@ -1,6 +1,6 @@
 # 宿舍食譜助手
 
-使用 Streamlit、Gemini API 生成食譜與料理圖片。
+使用 Streamlit 與 Gemini API 生成食譜。
 
 生成食譜後會切換到獨立的結果畫面，可重新生成，或返回食材選擇；返回時會保留原本選項。
 食材選擇畫面右上方的「隨機食材挑戰」會隨機選出 6～10 種食材或調味料，其中至少 4 種為食材。
@@ -38,5 +38,5 @@ $env:GEMINI_API_KEY="你的 Gemini API 金鑰"
 ```
 
 Gemini API 金鑰可從 [Google AI Studio](https://aistudio.google.com/apikey) 取得。
-若需要更換模型，可設定 `GEMINI_MODEL`（食譜）或 `GEMINI_IMAGE_MODEL`（圖片）。
+若需要更換食譜模型，可設定 `GEMINI_MODEL`。
 選單資料放在 `menu.json`。肉類可先選肉種再勾選型態；也可手動輸入食材。
