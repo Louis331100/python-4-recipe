@@ -54,10 +54,13 @@ def render_ingredients_ui(menu_data):
             selected_ingredients.append(ingredient)
 
     # 基本調味料預設全選，使用者可取消不具備的項目。
+    seasonings_default = None
+    if "selected_default_seasonings" not in st.session_state:
+        seasonings_default = menu_data["default_seasonings"]
     seasonings = st.multiselect(
         "基本調味料（預設全選，請取消沒有的項目）",
         menu_data["default_seasonings"],
-        default=menu_data["default_seasonings"],
+        default=seasonings_default,
         key="selected_default_seasonings",
     )
     return selected_ingredients, seasonings
@@ -77,6 +80,69 @@ def render_preference_ui(menu_data):
         key="allow_extra_buy",
     )
     return preference, allow_extra_buy
+
+
+def _form_widget_keys(menu_data):
+    """回傳表單中所有 widget 的 session state key。"""
+    keys = [
+        "selected_cookware",
+        "manual_ingredients",
+        "selected_default_seasonings",
+        "recipe_preference",
+        "allow_extra_buy",
+    ]
+    for category, items in menu_data["categories"].items():
+        if category == "肉類" and type(items) is dict:
+            for meat_type in items:
+                keys.append("meat_" + meat_type)
+        elif type(items) is list:
+            keys.append("category_" + category)
+    return keys
+
+
+def _save_form_values(menu_data):
+    """保存表單選項，供切換頁面後恢復。"""
+    st.session_state["recipe_form_values"] = {
+        key: st.session_state[key]
+        for key in _form_widget_keys(menu_data)
+        if key in st.session_state
+    }
+
+
+def _restore_form_values():
+    """在建立表單 widget 前恢復先前保存的選項。"""
+    for key, value in st.session_state.get("recipe_form_values", {}).items():
+        st.session_state[key] = value
+
+
+def _generate_recipe_for_inputs(recipe_inputs):
+    """依已保存的輸入生成食譜與圖片；回傳食譜是否生成成功。"""
+    prompt = build_recipe_prompt(
+        recipe_inputs["cookware"],
+        recipe_inputs["ingredients"],
+        recipe_inputs["seasonings"],
+        recipe_inputs["preference"],
+        recipe_inputs["allow_extra_buy"],
+    )
+    st.session_state["recipe_image"] = None
+    st.session_state["recipe_image_error"] = None
+    try:
+        with st.spinner("正在依照你的食材和廚具設計食譜…"):
+            recipe_data = generate_recipe(prompt)
+    except (RuntimeError, ValueError) as error:
+        st.error(str(error))
+        return False
+
+    st.session_state["recipe_data"] = recipe_data
+    try:
+        with st.spinner("正在生成料理圖片…"):
+            st.session_state["recipe_image"] = generate_recipe_image(
+                recipe_data["dish_name"],
+                recipe_data["existing_ingredients"],
+            )
+    except (RuntimeError, ValueError) as error:
+        st.session_state["recipe_image_error"] = str(error)
+    return True
 
 
 def render_recipe_result(recipe_data, recipe_image=None, image_error=None):
@@ -154,6 +220,37 @@ def main():
         st.error("讀取 menu.json 失敗：" + str(error))
         st.stop()
 
+    if st.session_state.get("current_view") == "recipe":
+        first_column, second_column = st.columns(2)
+        with first_column:
+            regenerate = st.button(
+                "重新生成",
+                type="primary",
+                key="regenerate_recipe",
+            )
+        with second_column:
+            return_to_form = st.button(
+                "返回選擇食材",
+                key="return_to_recipe_form",
+            )
+
+        if return_to_form:
+            st.session_state["current_view"] = "form"
+            st.rerun()
+        if regenerate:
+            _generate_recipe_for_inputs(st.session_state["recipe_inputs"])
+
+        recipe_data = st.session_state.get("recipe_data")
+        if recipe_data is not None:
+            render_recipe_result(
+                recipe_data,
+                st.session_state.get("recipe_image"),
+                st.session_state.get("recipe_image_error"),
+            )
+        return
+
+    _restore_form_values()
+
     # 使用表單集中輸入，避免每次點選都重新呼叫 AI。
     with st.form("recipe_input_form"):
         cookware = render_cookware_ui(menu_data)
@@ -162,8 +259,7 @@ def main():
         submitted = st.form_submit_button("✨ 生成食譜", type="primary")
 
     if submitted:
-        st.session_state["recipe_image"] = None
-        st.session_state["recipe_image_error"] = None
+        _save_form_values(menu_data)
         if len(cookware) == 0:
             st.error("請至少選擇一項可用廚具。")
             st.session_state["recipe_data"] = None
@@ -171,36 +267,19 @@ def main():
             st.error("請至少選擇或輸入一項食材。")
             st.session_state["recipe_data"] = None
         else:
-            prompt = build_recipe_prompt(
-                cookware,
-                ingredients,
-                seasonings,
-                preference,
-                allow_extra_buy,
-            )
+            st.session_state["recipe_inputs"] = {
+                "cookware": cookware,
+                "ingredients": ingredients,
+                "seasonings": seasonings,
+                "preference": preference,
+                "allow_extra_buy": allow_extra_buy,
+            }
             st.session_state["recipe_data"] = None
-            try:
-                with st.spinner("正在依照你的食材和廚具設計食譜…"):
-                    st.session_state["recipe_data"] = generate_recipe(prompt)
-            except (RuntimeError, ValueError) as error:
-                st.error(str(error))
-            else:
-                try:
-                    with st.spinner("正在生成料理圖片…"):
-                        st.session_state["recipe_image"] = generate_recipe_image(
-                            st.session_state["recipe_data"]["dish_name"],
-                            st.session_state["recipe_data"]["existing_ingredients"],
-                        )
-                except (RuntimeError, ValueError) as error:
-                    st.session_state["recipe_image_error"] = str(error)
+            if _generate_recipe_for_inputs(st.session_state["recipe_inputs"]):
+                st.session_state["current_view"] = "recipe"
 
-    recipe_data = st.session_state.get("recipe_data")
-    if recipe_data is not None:
-        render_recipe_result(
-            recipe_data,
-            st.session_state.get("recipe_image"),
-            st.session_state.get("recipe_image_error"),
-        )
+    if st.session_state.get("current_view") == "recipe":
+        st.rerun()
 
 
 if __name__ == "__main__":
