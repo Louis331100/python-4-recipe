@@ -6,23 +6,27 @@
 
 ### Windows 一鍵啓動（建議）
 
-在檔案總管中雙擊 `start_app.bat`。
+在檔案總管中雙擊 `start_app.vbs`。啓動器會隱藏終端，並以獨立的 Edge App 視窗開啓程式；關閉該視窗後，伺服器會自動結束。
 
 首次啓動會：
 1. 建立 `.venv` 虛擬環境。
 2. 安裝 `requirements.txt` 中的套件。
-3. 詢問 Gemini API 金鑰。
-4. 啓動 App 並自動開啓瀏覽器。
+3. 以密碼欄位詢問 Gemini API 金鑰。
+4. 啓動 App 並開啓獨立瀏覽器視窗。
 
-金鑰只保存在目前的批次檔視窗環境中，不會寫入專案檔案。關閉視窗後，下次啓動會再次詢問；若已在系統或終端機設定 `GEMINI_API_KEY`，批次檔會直接使用該值。
+金鑰只保存在啓動器的程序環境中，不會寫入專案檔案。關閉視窗後，下次啓動會再次詢問；若已設定 `GEMINI_API_KEY` 環境變數，啓動器會直接使用該值。
+
+也可以雙擊 `start_app.bat` 啓動；它會呼叫相同的隱藏式啓動器。
 
 也可在終端機執行：
 
 ```powershell
-.\start_app.bat
+wscript.exe .\start_app.vbs
 ```
 
 ### 手動執行
+
+手動執行時伺服器會持續執行，需在終端機按 `Ctrl+C` 停止；只有使用上方的啓動器才會在關閉 Edge App 視窗時自動結束。
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
