@@ -4,6 +4,26 @@
 
 ## 安裝與執行
 
+### Windows 一鍵啓動（建議）
+
+在檔案總管中雙擊 `start_app.bat`。
+
+首次啓動會：
+1. 建立 `.venv` 虛擬環境。
+2. 安裝 `requirements.txt` 中的套件。
+3. 詢問 Gemini API 金鑰。
+4. 啓動 App 並自動開啓瀏覽器。
+
+金鑰只保存在目前的批次檔視窗環境中，不會寫入專案檔案。關閉視窗後，下次啓動會再次詢問；若已在系統或終端機設定 `GEMINI_API_KEY`，批次檔會直接使用該值。
+
+也可在終端機執行：
+
+```powershell
+.\start_app.bat
+```
+
+### 手動執行
+
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 $env:GEMINI_API_KEY="你的 Gemini API 金鑰"
