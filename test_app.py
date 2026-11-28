@@ -3,6 +3,7 @@ import os
 import unittest
 from unittest.mock import Mock, patch
 
+import streamlit as st
 from streamlit.testing.v1 import AppTest
 
 import data_loader
@@ -35,7 +36,13 @@ class RecipeNavigationTests(unittest.TestCase):
             ],
             "reminders": [],
         }
-        generate_recipe = Mock(side_effect=[recipe, recipe, recipe])
+        generation_views = []
+
+        def generate_recipe_during_current_view(prompt):
+            generation_views.append(st.session_state.get("current_view"))
+            return recipe
+
+        generate_recipe = Mock(side_effect=generate_recipe_during_current_view)
 
         with patch.object(data_loader, "load_menu", return_value=menu), \
                 patch.object(
@@ -55,6 +62,7 @@ class RecipeNavigationTests(unittest.TestCase):
             ).click().run()
 
             self.assertFalse(app.exception)
+            self.assertEqual(generation_views, ["generating"])
             self.assertIn(
                 "regenerate_recipe",
                 [button.key for button in app.button],
@@ -68,6 +76,7 @@ class RecipeNavigationTests(unittest.TestCase):
             app.button(key="regenerate_recipe").click().run()
             self.assertFalse(app.exception)
             self.assertEqual(generate_recipe.call_count, 2)
+            self.assertEqual(generation_views, ["generating", "recipe"])
 
             app.button(key="return_to_recipe_form").click().run()
             self.assertFalse(app.exception)
@@ -89,6 +98,10 @@ class RecipeNavigationTests(unittest.TestCase):
                 key="FormSubmitter:recipe_input_form-✨ 生成食譜"
             ).click().run()
             self.assertFalse(app.exception)
+            self.assertEqual(
+                generation_views,
+                ["generating", "recipe", "generating"],
+            )
             latest_prompt = json.loads(generate_recipe.call_args.args[0])
             self.assertEqual(
                 latest_prompt["conditions"]["cookware"],
@@ -143,6 +156,47 @@ class RecipeNavigationTests(unittest.TestCase):
             ).click().run()
             self.assertFalse(app.exception)
             generate_recipe.assert_called_once()
+
+    def test_generation_failure_returns_to_saved_selection_view(self):
+        menu = {
+            "cookware": ["快煮鍋"],
+            "categories": {"主食": ["白飯"]},
+            "default_seasonings": ["鹽"],
+            "recipe_preferences": ["快速料理"],
+        }
+        generate_recipe = Mock(
+            side_effect=RuntimeError(
+                "Gemini API 呼叫失敗：503 UNAVAILABLE"
+            )
+        )
+
+        with patch.object(data_loader, "load_menu", return_value=menu), \
+                patch.object(
+                    prompt_builder,
+                    "generate_recipe",
+                    generate_recipe,
+                ):
+            app = AppTest.from_file(
+                os.path.join(os.path.dirname(__file__), "app.py")
+            ).run()
+            app.multiselect(key="selected_cookware").select("快煮鍋")
+            app.multiselect(key="category_主食").select("白飯")
+            app.button(
+                key="FormSubmitter:recipe_input_form-✨ 生成食譜"
+            ).click().run()
+
+            self.assertFalse(app.exception)
+            self.assertEqual(app.session_state["current_view"], "form")
+            self.assertEqual(len(app.error), 1)
+            generate_recipe.assert_called_once()
+            self.assertEqual(
+                app.multiselect(key="selected_cookware").value,
+                ["快煮鍋"],
+            )
+            self.assertEqual(
+                app.multiselect(key="category_主食").value,
+                ["白飯"],
+            )
 
     def test_random_challenge_selects_six_to_ten_with_four_ingredients(self):
         menu = {

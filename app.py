@@ -186,9 +186,10 @@ def _generate_recipe_for_inputs(recipe_inputs):
         with st.spinner("正在依照你的食材和廚具設計食譜…"):
             recipe_data = generate_recipe(prompt)
     except (RuntimeError, ValueError) as error:
-        st.error(str(error))
+        st.session_state["recipe_generation_error"] = str(error)
         return False
 
+    st.session_state.pop("recipe_generation_error", None)
     st.session_state["recipe_data"] = recipe_data
     return True
 
@@ -260,7 +261,10 @@ def main():
         st.error("讀取 menu.json 失敗：" + str(error))
         st.stop()
 
+    selection_view = st.empty()
+
     if st.session_state.get("current_view") == "recipe":
+        selection_view.empty()
         first_column, second_column = st.columns(2)
         with first_column:
             regenerate = st.button(
@@ -278,42 +282,58 @@ def main():
             st.session_state["current_view"] = "form"
             st.rerun()
         if regenerate:
-            _generate_recipe_for_inputs(st.session_state["recipe_inputs"])
+            if not _generate_recipe_for_inputs(
+                st.session_state["recipe_inputs"]
+            ):
+                st.error(st.session_state.pop("recipe_generation_error"))
 
         recipe_data = st.session_state.get("recipe_data")
         if recipe_data is not None:
             render_recipe_result(recipe_data)
         return
 
-    _restore_form_values()
-    _, challenge_column = st.columns([5, 1])
-    with challenge_column:
-        random_challenge = st.button(
-            "🎲 隨機食材挑戰",
-            key="random_ingredient_challenge",
-            use_container_width=True,
-        )
-    if random_challenge:
-        try:
-            challenge_values, total_count, ingredient_count = (
-                _random_challenge_values(menu_data)
-            )
-        except ValueError as error:
-            st.error(str(error))
+    if st.session_state.get("current_view") == "generating":
+        selection_view.empty()
+        if _generate_recipe_for_inputs(st.session_state["recipe_inputs"]):
+            st.session_state["current_view"] = "recipe"
         else:
-            for key, value in challenge_values.items():
-                st.session_state[key] = value
-            st.success(
-                "已隨機挑選 " + str(total_count) + " 種，其中食材 "
-                + str(ingredient_count) + " 種。"
-            )
+            st.session_state["current_view"] = "form"
+        st.rerun()
 
-    # 使用表單集中輸入，避免每次點選都重新呼叫 AI。
-    with st.form("recipe_input_form"):
-        cookware = render_cookware_ui(menu_data)
-        ingredients, seasonings = render_ingredients_ui(menu_data)
-        preference, allow_extra_buy = render_preference_ui(menu_data)
-        submitted = st.form_submit_button("✨ 生成食譜", type="primary")
+    _restore_form_values()
+    generation_error = st.session_state.pop("recipe_generation_error", None)
+    if generation_error is not None:
+        st.error(generation_error)
+
+    with selection_view.container():
+        _, challenge_column = st.columns([5, 1])
+        with challenge_column:
+            random_challenge = st.button(
+                "🎲 隨機食材挑戰",
+                key="random_ingredient_challenge",
+                use_container_width=True,
+            )
+        if random_challenge:
+            try:
+                challenge_values, total_count, ingredient_count = (
+                    _random_challenge_values(menu_data)
+                )
+            except ValueError as error:
+                st.error(str(error))
+            else:
+                for key, value in challenge_values.items():
+                    st.session_state[key] = value
+                st.success(
+                    "已隨機挑選 " + str(total_count) + " 種，其中食材 "
+                    + str(ingredient_count) + " 種。"
+                )
+
+        # 使用表單集中輸入，避免每次點選都重新呼叫 AI。
+        with st.form("recipe_input_form"):
+            cookware = render_cookware_ui(menu_data)
+            ingredients, seasonings = render_ingredients_ui(menu_data)
+            preference, allow_extra_buy = render_preference_ui(menu_data)
+            submitted = st.form_submit_button("✨ 生成食譜", type="primary")
 
     if submitted:
         if len(cookware) == 0:
@@ -331,9 +351,10 @@ def main():
                 "allow_extra_buy": allow_extra_buy,
             }
             st.session_state["recipe_data"] = None
-            if _generate_recipe_for_inputs(st.session_state["recipe_inputs"]):
-                _save_form_values(menu_data)
-                st.session_state["current_view"] = "recipe"
+            _save_form_values(menu_data)
+            selection_view.empty()
+            st.session_state["current_view"] = "generating"
+            st.rerun()
 
     if st.session_state.get("current_view") == "recipe":
         st.rerun()
